@@ -25,31 +25,11 @@ export interface DiagramData {
   edges: DiagramEdge[];
 }
 
-export interface ActionItem {
-  id: string;
-  task: string;
-  owner: string;
-  priority: 'High' | 'Medium' | 'Low';
-  done: boolean;
-  deadline?: string;
-}
-
-export interface SegmentNotes {
-  title: string;
-  timeRange?: string;
-  bullets: string[];
-}
-
 export interface SummaryResult {
   title: string;
+  markdown: string;
   duration?: string;
-  date: string;
-  summaryText: string;
-  highlights: string[];
-  segments: SegmentNotes[];
-  actionItems: ActionItem[];
-  diagramData: DiagramData;
-  rawTranscriptUsed: string;
+  date?: string;
 }
 
 // Memory block for Pinecone-associated historical semantic retrieval

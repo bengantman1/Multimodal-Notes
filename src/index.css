@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
@@ -14,5 +15,31 @@
 }
 .dark .whiteboard-dots {
   background-image: radial-gradient(#374151 1px, transparent 1px);
+}
+
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  .prose-invert {
+    --tw-prose-body: black;
+    --tw-prose-headings: black;
+    --tw-prose-links: #c5a059;
+    --tw-prose-bold: black;
+    --tw-prose-code: black;
+    --tw-prose-bullets: black;
+    --tw-prose-quotes: black;
+    --tw-prose-hr: #e5e7eb;
+    color: black !important;
+  }
+  h3 { color: black !important; }
+  span, div, p { color: black !important; border-color: #e5e7eb !important; }
+  .bg-\[\#0c0c0c\] { background-color: transparent !important; }
+  
+  /* hide everything that is not the printable document */
+  header, #btn-voice-recorder, #transcript-raw-textarea, #btn-process-summarize, #dashboard-setup-empty {
+    display: none !important;
+  }
 }
 

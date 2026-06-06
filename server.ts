@@ -32,56 +32,14 @@ const ai = new GoogleGenAI({
 // A system prompt that forces the structured summary output for our meeting notes
 const SUMMARIZE_SYSTEM_INSTRUCTION = `
 You are an expert executive assistant and technical note-taker. 
-Your task is to analyze the provided raw meeting transcript or voice memo text, and generate a customized structured summary in JSON format that adapts to the topics discussed.
-Ensure all outputs are clear, actionable, and visually ready for representation.
-
-The response MUST match this JSON structure (only include fields that have relevant extracted data based on the transcript):
+Your task is to analyze the provided raw meeting transcript or voice memo text, and generate a customized structured summary.
+Your output MUST be a JSON object with the following schema:
 {
   "title": "A concise title summarizing the meeting context",
-  "summaryText": "A cohesive, high-level summary paragraph of the conversation",
-  "duration": "Estimated meeting/recording duration (e.g. '30 seconds', '15 mins', or leave empty if unknown)",
-  "date": "Use the current date provided in the prompt, or Today's date",
-  "highlights": [
-    "Key highlight bullet if relevant"
-  ],
-  "segments": [
-    {
-      "title": "Discussion Topic title (customized to the actual transcript topic)",
-      "bullets": ["Detail bullet 1", "Detail bullet 2"]
-    }
-  ],
-  "actionItems": [
-    {
-      "id": "act-1",
-      "task": "Specific task statement with high clarity",
-      "owner": "Person responsible or 'Unassigned'",
-      "priority": "High" or "Medium" or "Low",
-      "done": false
-    }
-  ],
-  "diagramData": {
-    "nodes": [
-      {
-        "id": "node-1",
-        "label": "Concept or decision point",
-        "type": "agenda" or "decision" or "action" or "milestone" or "idea",
-        "x": 100,
-        "y": 100
-      }
-    ],
-    "edges": [
-      {
-        "source": "node-1",
-        "target": "node-2"
-      }
-    ]
-  }
+  "markdown": "A comprehensive summary formatted in Markdown. Include headings, bullet points, action items. If it is effective to graphically represent ideas, include 'mermaid' code blocks (e.g., \\\`\\\`\\\`mermaid\\ngraph TD ...\\\`\\\`\\\`) to render flowcharts or graphs. Do not include raw images or non-standard diagram formatting."
 }
-
 Guidelines:
-- Omit any highlight bullets or segments if they aren't actually mentioned in the transcript.
-- Create 3-6 diagramData nodes with elegant spacing (x: 50-600, y: 50-350) represent chronological concepts or steps. If no complex sequence is found, diagramData nodes can be minimal.
-- Only return valid JSON. Do not include extra markdown annotations wrapper inside the JSON.
+- Return ONLY valid JSON matching the schema.
 `;
 
 // Helper for generating dynamic mock data if Gemini API has problems or keys are missing
@@ -89,52 +47,9 @@ const getMockWorkspaceData = (userInput: string, currentDateStr?: string): any =
   const finalDate = currentDateStr || new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   return {
     title: "Project Orion Strategy Sync",
-    summaryText: "The team aligned on the strategic development roadmap, detailing high-fidelity diagrams with the visual rendering assets. Action parameters and next milestones were scheduled.",
+    markdown: "### Executive Summary\n\nThe team aligned on the strategic development roadmap, detailing high-fidelity diagrams with the visual rendering assets.\n\n### Highlights\n\n- Agreed to build structured diagram templates\n- Coordinate visual launch layouts\n\n### Diagram\n\n```mermaid\ngraph TD\n  Client[React Client] --> API[Node Backend]\n  API --> DB[(PostgreSQL)]\n  API --> Cache[(Redis Cache)]\n```\n\n### Action Items\n\n- [ ] Draft template structures (Sarah)\n- [ ] Review layout specifications (John)",
     duration: "15 seconds",
     date: finalDate,
-    highlights: [
-      "Agreed to build structured diagram templates for key project flows",
-      "Coordinate visual launch layouts before scheduled releases"
-    ],
-    segments: [
-      {
-        title: "Concept Refinements",
-        bullets: [
-          "Identified clean visual layouts to support clear presentation blocks",
-          "Planned template structures for rapid automated summaries"
-        ]
-      }
-    ],
-    actionItems: [
-      {
-        id: "mock-1",
-        task: "Draft template diagram structures",
-        owner: "Sarah",
-        priority: "High",
-        done: false
-      },
-      {
-        id: "mock-2",
-        task: "Review visual layout specifications",
-        owner: "John",
-        priority: "Medium",
-        done: false
-      }
-    ],
-    diagramData: {
-      nodes: [
-        { id: "flow-1", label: "Kickoff", type: "agenda", x: 100, y: 150 },
-        { id: "flow-2", label: "Layout Specs", type: "idea", x: 260, y: 150 },
-        { id: "flow-3", label: "Templates", type: "decision", x: 420, y: 150 },
-        { id: "flow-4", label: "Launch Check", type: "milestone", x: 580, y: 150 }
-      ],
-      edges: [
-        { source: "flow-1", target: "flow-2" },
-        { source: "flow-2", target: "flow-3" },
-        { source: "flow-3", target: "flow-4" }
-      ]
-    },
-    rawTranscriptUsed: userInput || "[Voice Message Transcription]"
   };
 };
 
@@ -306,60 +221,6 @@ No custom Gemini API key is configured or the request timed out, but here is a s
 3. **Strategic AI Advice**:
    - Consider adding a "Sync Whiteboard with Notes" action where drawings automatically get labeled as a milestone in the interactive flow map.
    - Use vector embeddings representing these sketched tags so users can search drawings semantically.`
-    });
-  }
-});
-
-// Nano Banana Diagram Image Generation Endpoint based on meeting summary
-app.post("/api/generate-diagram-image", async (req, res) => {
-  const { themePrompt } = req.body;
-
-  if (!themePrompt) {
-    return res.status(400).json({ error: "themePrompt is required" });
-  }
-
-  try {
-    // nano banana is 'gemini-2.5-flash-image'
-    // Users must use their own API key. We handle non-paid key gracefully
-    const promptText = `Modern minimal flat vector flowchart diagram representing: ${themePrompt}. High contrast, dark-slate blueprint accent coloring, professional user-interface asset, no text blur labels, clean lines, SVG visual feel.`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: {
-        parts: [
-          {
-            text: promptText,
-          },
-        ],
-      },
-      config: {
-        imageConfig: {
-          aspectRatio: "16:9",
-        }
-      },
-    });
-
-    let base64Image = "";
-    if (response.candidates?.[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          base64Image = `data:image/png;base64,${part.inlineData.data}`;
-          break;
-        }
-      }
-    }
-
-    if (!base64Image) {
-      throw new Error("No image data found in response parts.");
-    }
-
-    return res.json({ imageUrl: base64Image });
-  } catch (err: any) {
-    console.error("Gemini Nano Banana failed generation, serving mock illustration pattern.", err);
-    // Return a beautiful dynamic placeholder image to simulate diagram graphic sections
-    return res.json({
-      imageUrl: "MOCK_IMAGE_FALLBACK",
-      message: "Simulation active: A high-fidelity conceptual dark theme blueprint represents safety metrics. This represents the visual diagram module requested!"
     });
   }
 });

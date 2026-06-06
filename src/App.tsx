@@ -65,6 +65,12 @@ const MermaidDiagram = ({ code }: { code: string }) => {
         if (ref.current) {
           ref.current.innerHTML = result.svg;
         }
+      }).catch((err) => {
+        console.error("Mermaid parsing error:", err);
+        // Fallback to showing code if parsing fails
+        if (ref.current) {
+          ref.current.innerHTML = `<div class="p-4 bg-red-50 text-red-600 text-sm overflow-x-auto rounded-lg"><pre>${err.message || 'Error parsing graph'}</pre></div>`;
+        }
       });
     }
   }, [code]);
@@ -107,7 +113,7 @@ const SUGGESTED_PRESETS = [
 ];
 
 export default function App() {
-  const [meetingTitle, setMeetingTitle] = useState<string>("Project Orion: Technical sync");
+  const [meetingTitle, setMeetingTitle] = useState<string>("Project Mesh: Technical sync");
   const [meetingContext, setMeetingContext] = useState<string>("Design guidelines and model workflows");
   const [transcriptInput, setTranscriptInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -179,7 +185,7 @@ export default function App() {
   useEffect(() => {
     let recognition: any = null;
     if (appMode === 'LIVE_CONVERSATION' && isLiveActive) {
-      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
         recognition = new SpeechRecognition();
         recognition.continuous = true;
@@ -346,8 +352,10 @@ export default function App() {
           transcript: transcriptInput,
           currentDate: systemDate,
           meetingContext: appMode === 'LIVE_CONVERSATION' ? "Live updating meeting summary. Add to nodes conceptually as we go." : meetingContext,
-          previousSummary: appMode === 'LIVE_CONVERSATION' ? summaryDataRef.current?.markdown : undefined
+          previousSummary: appMode === 'LIVE_CONVERSATION' ? summaryDataRef.current?.markdown : undefined,
+          isLiveConversation: appMode === 'LIVE_CONVERSATION'
         })
+
       });
       const data = await resp.json();
       if (data.error) {
@@ -370,7 +378,7 @@ export default function App() {
       <header className="h-16 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between px-6 sm:px-12 py-3 md:py-0 bg-white shrink-0 gap-3 md:gap-0 sticky top-0 z-20">
         <div className="flex items-center gap-2">
           <FileText className="w-5 h-5 text-indigo-600" />
-          <h1 className="font-medium tracking-wide text-sm text-gray-900">Meeting Notes</h1>
+          <h1 className="font-medium tracking-wide text-sm text-gray-900">Mesh</h1>
         </div>
 
         <div className="flex items-center gap-4">

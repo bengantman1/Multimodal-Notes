@@ -95,20 +95,22 @@ const getMockWorkspaceData = (userInput: string, currentDateStr?: string): any =
 
 // Pasted Transcript Summarizer Endpoint
 app.post("/api/summarize-transcript", async (req, res) => {
-  const { transcript, meetingContext, currentDate, previousSummary } = req.body;
+  const { transcript, meetingContext, currentDate, previousSummary, isLiveConversation } = req.body;
 
   if (!transcript || !transcript.trim()) {
     return res.status(400).json({ error: "Transcript content is empty" });
   }
 
   try {
-    const prompt = `
-      Analyze the following transcript. Context of discussion: ${meetingContext || "Regular discussion"}.
-      Current System Date reference: ${currentDate || "today"}.
-      
-      Transcript text:
-      "${transcript}"
-      
+    const liveRules = isLiveConversation ? `
+      IMPORTANT LIVE SYNC RULE: You are building a live visual reference. 
+      Do NOT output full meeting notes or long text summaries.
+      Your output in the "markdown" field MUST contain only:
+      1. A single Mermaid graph/diagram block that visualizes the current state of the conversation (e.g. a mind map, network graph, flowchart, or architecture diagram).
+      2. A succinct list of actionable items (Tasks) extracted from the conversation thus far.
+      Synthesize the concepts from the transcript into this visual graph and action items list.
+      CRITICAL MERMAID SYNTAX RULE: Always enclose node labels in double quotes (e.g., NodeA["Node Label (details)"]). Avoid using special unescaped characters outside of quotes.
+      ` : `
       ${previousSummary ? `
       PREVIOUS SUMMARY STATE:
       \`\`\`markdown
@@ -116,9 +118,20 @@ app.post("/api/summarize-transcript", async (req, res) => {
       \`\`\`
       IMPORTANT LIVE SYNC RULE: You are updating a live conversation summary. Do NOT rewrite the entire document from scratch. ONLY change or append details in the document that are relevant to the new transcript modifications. Preserve the structure and unmodified details as much as possible. Output the full updated markdown.
       ` : ""}
+      `;
 
-      Produce the requested structured JSON. Ensure valid braces structure. Only include lists or segments that are directly supported by text evidence.
+    const prompt = `
+      Analyze the following transcript. Context of discussion: ${meetingContext || "Regular discussion"}.
+      Current System Date reference: ${currentDate || "today"}.
+      
+      Transcript text:
+      "${transcript}"
+      
+      ${liveRules}
+
+      ${isLiveConversation ? "Produce the requested structured JSON. The markdown field must ONLY contain a mermaid diagram and an action items list." : "Produce the requested structured JSON. Ensure valid braces structure. Only include lists or segments that are directly supported by text evidence."}
     `;
+
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",

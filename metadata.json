@@ -1,0 +1,6 @@
+{
+  "name": "Meeting Notes Summarizer",
+  "description": "An interactive Zoom and conversation companion to record live meetings, paste transcripts, synthesize bullet summaries, draw on active whiteboards, and generate visual diagram concepts.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

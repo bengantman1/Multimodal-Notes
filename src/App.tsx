@@ -494,7 +494,7 @@ export default function App() {
                           Live Conversation
                         </h4>
                         <p className="text-xs text-gray-500 mt-2 leading-relaxed">
-                          Graph and summary will automatically update structurally every 15s to reflect incoming data.
+                          Graph and summary will automatically update structurally every 5s to reflect incoming data.
                         </p>
                       </div>
 

@@ -98,6 +98,11 @@ const SUGGESTED_PRESETS = [
     title: "Executive Launch Strategy",
     badge: "Marketing Flow",
     text: "Sarah: We need to coordinate the visual launch checklist. John can design the presentation flowcards. James: Yes, and we need John to complete the review of user interface drafts before Thursday. Let's ensure top priority is set on the interactive models."
+  },
+  {
+    title: "Nano Banana Pro: Product Reveal",
+    badge: "Hardware Specs",
+    text: "Alice: Welcome team. Today we finalize the specs for our flagship device, the Nano Banana Pro. Bob: The core components are looking solid. We've integrated the Quantum Peel Sensor directly into the yellow haptic unibody. Charlie: Don't forget the Potassium Battery! It connects straight to the Peel Sensor for optimized energy delivery. Alice: Perfect. Let's draw up a system block diagram showing the Nano Banana Pro's main connections: Potassium Battery to the Peel Sensor, and both routing into the Potassium Mainboard."
   }
 ];
 
@@ -107,6 +112,12 @@ export default function App() {
   const [transcriptInput, setTranscriptInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [summaryData, setSummaryData] = useState<SummaryResult | null>(null);
+  
+  // New Live Conversation states
+  const [appMode, setAppMode] = useState<'POST_MEETING' | 'LIVE_CONVERSATION'>('POST_MEETING');
+  const [isLiveActive, setIsLiveActive] = useState<boolean>(false);
+  const prevTranscriptRef = useRef<string>("");
+  const liveIntervalRef = useRef<any>(null);
 
   const handleExportPDF = async () => {
     const element = document.getElementById('document-content');
@@ -161,6 +172,27 @@ export default function App() {
       if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
     };
   }, [isRecording]);
+
+  // Live Conversation effect
+  useEffect(() => {
+    if (appMode === 'LIVE_CONVERSATION' && isLiveActive) {
+      // Setup interval
+      liveIntervalRef.current = setInterval(() => {
+        // Only run summarize if transcript actually changed
+        if (transcriptInput.trim() !== '' && transcriptInput !== prevTranscriptRef.current) {
+          prevTranscriptRef.current = transcriptInput;
+          processTranscript(true); // pass true for silent/background loading
+        }
+      }, 15000); // 15 seconds interval
+    } else {
+      if (liveIntervalRef.current) {
+        clearInterval(liveIntervalRef.current);
+      }
+    }
+    return () => {
+      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
+    };
+  }, [appMode, isLiveActive, transcriptInput]);
 
   const selectPreset = (preset: typeof SUGGESTED_PRESETS[0]) => {
     setTranscriptInput(preset.text);
@@ -254,14 +286,14 @@ export default function App() {
   };
 
   // Submit Text Transcript Process
-  const processTranscript = async () => {
+  const processTranscript = async (isSilent: boolean = false) => {
     if (!transcriptInput.trim()) {
       setErrorMessage("Please select a preset chip or write a conversation text transcript first.");
       return;
     }
 
-    setIsLoading(true);
-    setErrorMessage("");
+    if (!isSilent) setIsLoading(true);
+    if (!isSilent) setErrorMessage("");
     const systemDate = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     try {
       const resp = await fetch('/api/summarize-transcript', {
@@ -269,20 +301,21 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transcript: transcriptInput,
-          currentDate: systemDate
+          currentDate: systemDate,
+          meetingContext: appMode === 'LIVE_CONVERSATION' ? "Live updating meeting summary. Add to nodes conceptually as we go." : meetingContext
         })
       });
       const data = await resp.json();
       if (data.error) {
-        setErrorMessage(data.error);
+        if (!isSilent) setErrorMessage(data.error);
       } else {
         setSummaryData(data);
         if (data.title) setMeetingTitle(data.title);
       }
     } catch (err) {
-      setErrorMessage("Unable to parse pasted text segment. Please check container API.");
+      if (!isSilent) setErrorMessage("Unable to parse pasted text segment. Please check container API.");
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   };
 
@@ -297,12 +330,36 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
+          <div className="hidden sm:flex bg-gray-100 p-1 rounded-md border border-gray-200/60">
+            <button
+              onClick={() => { setAppMode('POST_MEETING'); setIsLiveActive(false); }}
+              className={`px-3 py-1 text-[11px] font-medium rounded transition-all cursor-pointer ${
+                appMode === 'POST_MEETING' 
+                  ? 'bg-white text-indigo-600 shadow-xs border-gray-200' 
+                  : 'text-gray-500 hover:text-gray-800 border-transparent'
+              } border`}
+            >
+              Post-Meeting Summary
+            </button>
+            <button
+              onClick={() => { setAppMode('LIVE_CONVERSATION'); }}
+              className={`px-3 py-1 text-[11px] font-medium rounded transition-all cursor-pointer ${
+                appMode === 'LIVE_CONVERSATION' 
+                  ? 'bg-white text-indigo-600 shadow-xs border-gray-200' 
+                  : 'text-gray-500 hover:text-gray-800 border-transparent'
+              } border`}
+            >
+              Live Conversation
+            </button>
+          </div>
+
           <button
             onClick={() => {
               setTranscriptInput("");
               setSummaryData(null);
               setErrorMessage("");
               setLastRecordedDuration(null);
+              setIsLiveActive(false);
             }}
             className="px-4 py-1.5 border border-gray-200 hover:border-gray-300 rounded-md text-xs text-gray-500 hover:text-gray-900 transition-all cursor-pointer"
           >
@@ -347,33 +404,62 @@ export default function App() {
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
-                {/* Recording module Box */}
+                {/* Contextual Input Module Box */}
                 <div className="lg:col-span-4 bg-gray-50 border border-gray-100 p-4 rounded-xl flex flex-col justify-between gap-4">
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900">Record Audio</h4>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Record from your microphone.
-                    </p>
-                  </div>
+                  {appMode === 'POST_MEETING' ? (
+                    <>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900">Record Audio</h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Record from your microphone.
+                        </p>
+                      </div>
 
-                  <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
-                    <button
-                      onClick={isRecording ? stopRecording : startRecording}
-                      className={`w-10 h-10 rounded-full cursor-pointer flex items-center justify-center transition-all shrink-0 ${isRecording ? 'bg-red-600 hover:bg-red-700 animate-pulse text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
-                      id="btn-voice-recorder"
-                      title={isRecording ? "Stop recording" : "Start speaking"}
-                    >
-                      {isRecording ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-white" />}
-                    </button>
-                    <div className="min-w-0">
-                      <span className="block text-[11px] font-semibold text-gray-900 truncate">
-                        {isRecording ? `Recording` : 'Ready'}
-                      </span>
-                      <span className="block font-mono text-[9px] text-gray-400">
-                        {isRecording ? `${recordingSeconds}s` : 'Click to start'}
-                      </span>
-                    </div>
-                  </div>
+                      <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
+                        <button
+                          onClick={isRecording ? stopRecording : startRecording}
+                          className={`w-10 h-10 rounded-full cursor-pointer flex items-center justify-center transition-all shrink-0 ${isRecording ? 'bg-red-600 hover:bg-red-700 animate-pulse text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
+                          id="btn-voice-recorder"
+                          title={isRecording ? "Stop recording" : "Start speaking"}
+                        >
+                          {isRecording ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-white" />}
+                        </button>
+                        <div className="min-w-0">
+                          <span className="block text-[11px] font-semibold text-gray-900 truncate">
+                            {isRecording ? `Recording` : 'Ready'}
+                          </span>
+                          <span className="block font-mono text-[9px] text-gray-400">
+                            {isRecording ? `${recordingSeconds}s` : 'Click to start'}
+                          </span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-900 tracking-tight flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${isLiveActive ? 'bg-red-500 animate-pulse' : 'bg-gray-300'}`}></div>
+                          Live Conversation
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-2 leading-relaxed">
+                          Graph and summary will automatically update structurally every 15s to reflect incoming data.
+                        </p>
+                      </div>
+
+                      <div className="mt-3 bg-white p-3 rounded-lg border border-gray-200 shadow-xs flex flex-col gap-2">
+                        <button
+                          onClick={() => setIsLiveActive(!isLiveActive)}
+                          className={`w-full py-2 rounded-md text-xs font-medium transition-all ${
+                            isLiveActive 
+                              ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100' 
+                              : 'bg-indigo-600 text-white hover:bg-indigo-700 border border-transparent'
+                          }`}
+                        >
+                          {isLiveActive ? 'Stop Live Sync' : 'Start Live Sync'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Pasted text Area column */}
@@ -392,16 +478,21 @@ export default function App() {
                   />
 
                   <div className="flex justify-end items-center mt-1">
-                    <button
-                      onClick={processTranscript}
-                      disabled={isLoading || !transcriptInput.trim()}
-                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-sm cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 transition-all flex items-center gap-2 shadow-md"
+                      <button
+                      onClick={() => processTranscript(false)}
+                      disabled={isLoading || !transcriptInput.trim() || (appMode === 'LIVE_CONVERSATION' && isLiveActive)}
+                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-sm cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 transition-all flex items-center gap-2 shadow-md min-w-[120px] justify-center"
                       id="btn-process-summarize"
                     >
-                      {isLoading ? (
+                      {isLoading && !isLiveActive ? (
                         <>
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           <span>Processing...</span>
+                        </>
+                      ) : (appMode === 'LIVE_CONVERSATION' && isLiveActive) ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-red-500" />
+                          <span>Live Syncing...</span>
                         </>
                       ) : (
                         <>
@@ -453,6 +544,12 @@ export default function App() {
                     <Markdown
                       remarkPlugins={[remarkGfm]}
                       components={{
+                        img(props) {
+                          const { node, ...rest } = props;
+                          return (
+                            <img {...rest} referrerPolicy="no-referrer" className="rounded-lg shadow-sm border border-gray-200 mt-4 max-w-full lg:max-w-[75%]" />
+                          );
+                        },
                         code(props) {
                           const { children, className, node, ...rest } = props;
                           const match = /language-(\w+)/.exec(className || "");

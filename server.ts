@@ -36,7 +36,7 @@ Your task is to analyze the provided raw meeting transcript or voice memo text, 
 Your output MUST be a JSON object with the following schema:
 {
   "title": "A concise title summarizing the meeting context",
-  "markdown": "A comprehensive summary formatted in Markdown. Include headings, bullet points, action items. If it is effective to graphically represent ideas, include 'mermaid' code blocks (e.g., \\\`\\\`\\\`mermaid\\ngraph TD ...\\\`\\\`\\\`) to render flowcharts or graphs. Do not include raw images or non-standard diagram formatting."
+  "markdown": "A comprehensive summary formatted in Markdown. Include headings, bullet points, action items. If it is effective to graphically represent ideas, include 'mermaid' code blocks (e.g., \\\`\\\`\\\`mermaid\\ngraph TD ...\\\`\\\`\\\`) to render flowcharts or graphs. In addition, you may include valid Markdown images if an image beautifully illustrates the topic discussed."
 }
 Guidelines:
 - Return ONLY valid JSON matching the schema.
@@ -45,6 +45,18 @@ Guidelines:
 // Helper for generating dynamic mock data if Gemini API has problems or keys are missing
 const getMockWorkspaceData = (userInput: string, currentDateStr?: string): any => {
   const finalDate = currentDateStr || new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  
+  if (userInput && userInput.toLowerCase().includes("nano banana")) {
+    const markdown = "### Executive Summary\n\nThe team finalized the hardware specifications and modular interconnections for the Nano Banana Pro device.\n\n### Highlights\n\n- Integrated Quantum Peel Sensor into the unibody\n- Confirmed Potassium Battery power delivery\n\n### Device Image\n\n![Nano Banana Pro](https://image.pollinations.ai/prompt/A%20sleek%20yellow%20futuristic%20hardware%20device%20called%20Nano%20Banana%20Pro)\n\n### Diagram\n\n```mermaid\ngraph TD\n  Battery[Potassium Battery] --> Sensor[Quantum Peel Sensor]\n  Battery --> Mainboard[Potassium Mainboard]\n  Sensor --> Mainboard\n```\n\n### Action Items\n\n- [ ] Finalize power delivery specs (Bob)\n- [ ] Draw layout schematics (Charlie)";
+
+    return {
+      title: "Nano Banana Pro: Product Reveal",
+      markdown: markdown,
+      duration: "25 seconds",
+      date: finalDate,
+    };
+  }
+
   return {
     title: "Project Orion Strategy Sync",
     markdown: "### Executive Summary\n\nThe team aligned on the strategic development roadmap, detailing high-fidelity diagrams with the visual rendering assets.\n\n### Highlights\n\n- Agreed to build structured diagram templates\n- Coordinate visual launch layouts\n\n### Diagram\n\n```mermaid\ngraph TD\n  Client[React Client] --> API[Node Backend]\n  API --> DB[(PostgreSQL)]\n  API --> Cache[(Redis Cache)]\n```\n\n### Action Items\n\n- [ ] Draft template structures (Sarah)\n- [ ] Review layout specifications (John)",
@@ -65,6 +77,7 @@ app.post("/api/summarize-transcript", async (req, res) => {
     const prompt = `
       Analyze the following transcript. Context of discussion: ${meetingContext || "Regular discussion"}.
       Current System Date reference: ${currentDate || "today"}.
+      CRITICAL INSTRUCTION FOR IMAGES: If the transcript describes a physical product, a highly visual concept, or implies an image would be useful, autonomously decide to include a generated image in the summary. Output exactly one special image tag in this format: [IMAGE_PROMPT: <detailed visual description of the subject>]. You can output both mermaid diagrams and a single image prompt if relevant.
       
       Transcript text:
       "${transcript}"
@@ -91,6 +104,46 @@ app.post("/api/summarize-transcript", async (req, res) => {
     if (!data.date && currentDate) {
       data.date = currentDate;
     }
+
+    // Process image prompt if exists
+    const imgPromptMatch = data.markdown.match(/\[IMAGE_PROMPT:\s*(.*?)\]/);
+    if (imgPromptMatch && imgPromptMatch[1]) {
+      try {
+        console.log("Generating image with nano-banana-pro for prompt:", imgPromptMatch[1]);
+        const imgResponse = await ai.models.generateContent({
+          model: 'gemini-3-pro-image',
+          contents: {
+            parts: [{ text: imgPromptMatch[1] }],
+          },
+          config: {
+            imageConfig: {
+              aspectRatio: "16:9",
+              imageSize: "1K"
+            }
+          }
+        });
+        
+        // Find the image part
+        let base64Image = null;
+        for (const part of imgResponse.candidates?.[0]?.content?.parts || []) {
+          if (part.inlineData) {
+            base64Image = part.inlineData.data;
+            break;
+          }
+        }
+        
+        if (base64Image) {
+          const markdownImage = `![Generated Image](data:image/jpeg;base64,${base64Image})`;
+          data.markdown = data.markdown.replace(imgPromptMatch[0], markdownImage);
+        } else {
+          data.markdown = data.markdown.replace(imgPromptMatch[0], "> *Image generation failed.*");
+        }
+      } catch (imgErr) {
+        console.error("Nano banana pro image generation error:", imgErr);
+        data.markdown = data.markdown.replace(imgPromptMatch[0], "> *Image generation failed (Check API key permissions).*");
+      }
+    }
+
     return res.json(data);
   } catch (err: any) {
     console.error("Gemini transcripts error, returning structured fallback data.", err);
@@ -137,6 +190,7 @@ app.post("/api/summarize-voice", async (req, res) => {
       "${textResult}"
 
       Current System Date reference: ${currentDate || "today"}.
+      CRITICAL INSTRUCTION FOR IMAGES: If the transcript describes a physical product, a highly visual concept, or implies an image would be useful, autonomously decide to include a generated image in the summary. Output exactly one special image tag in this format: [IMAGE_PROMPT: <detailed visual description of the subject>]. You can output both mermaid diagrams and a single image prompt if relevant.
       Please generate the professional structured meeting summary JSON matching our exact schemas. Organize the segments dynamically based strictly on the content discussed.
     `;
 
@@ -157,6 +211,45 @@ app.post("/api/summarize-voice", async (req, res) => {
     if (durationSeconds && !parsedData.duration) {
       parsedData.duration = `${durationSeconds} seconds`;
     }
+
+    // Process image prompt if exists
+    const imgPromptMatch = parsedData.markdown.match(/\[IMAGE_PROMPT:\s*(.*?)\]/);
+    if (imgPromptMatch && imgPromptMatch[1]) {
+      try {
+        console.log("Generating image with nano-banana-pro for prompt:", imgPromptMatch[1]);
+        const imgResponse = await ai.models.generateContent({
+          model: 'gemini-3-pro-image',
+          contents: {
+            parts: [{ text: imgPromptMatch[1] }],
+          },
+          config: {
+            imageConfig: {
+              aspectRatio: "16:9",
+              imageSize: "1K"
+            }
+          }
+        });
+        
+        let base64Image = null;
+        for (const part of imgResponse.candidates?.[0]?.content?.parts || []) {
+          if (part.inlineData) {
+            base64Image = part.inlineData.data;
+            break;
+          }
+        }
+        
+        if (base64Image) {
+          const markdownImage = `![Generated Image](data:image/jpeg;base64,${base64Image})`;
+          parsedData.markdown = parsedData.markdown.replace(imgPromptMatch[0], markdownImage);
+        } else {
+          parsedData.markdown = parsedData.markdown.replace(imgPromptMatch[0], "> *Image generation failed.*");
+        }
+      } catch (imgErr) {
+        console.error("Nano banana pro image generation error:", imgErr);
+        parsedData.markdown = parsedData.markdown.replace(imgPromptMatch[0], "> *Image generation failed (Check API key permissions).*");
+      }
+    }
+
     return res.json(parsedData);
 
   } catch (err: any) {

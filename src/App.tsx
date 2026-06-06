@@ -112,6 +112,8 @@ export default function App() {
   const [transcriptInput, setTranscriptInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [summaryData, setSummaryData] = useState<SummaryResult | null>(null);
+  const summaryDataRef = useRef<SummaryResult | null>(null);
+  useEffect(() => { summaryDataRef.current = summaryData; }, [summaryData]);
   
   // New Live Conversation states
   const [appMode, setAppMode] = useState<'POST_MEETING' | 'LIVE_CONVERSATION'>('POST_MEETING');
@@ -173,25 +175,66 @@ export default function App() {
     };
   }, [isRecording]);
 
-  // Live Conversation effect
+  // Web Speech API for Live Conversation
+  useEffect(() => {
+    let recognition: any = null;
+    if (appMode === 'LIVE_CONVERSATION' && isLiveActive) {
+      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        
+        recognition.onresult = (event: any) => {
+           let newTranscript = "";
+           for (let i = event.resultIndex; i < event.results.length; ++i) {
+             if (event.results[i].isFinal) {
+               newTranscript += event.results[i][0].transcript + " ";
+             }
+           }
+           if (newTranscript) {
+             setTranscriptInput(prev => {
+                const updated = prev + (prev && !prev.endsWith(' ') ? ' ' : '') + newTranscript.trim();
+                return updated;
+             });
+           }
+        };
+        
+        // Handle when recognition stops implicitly (e.g. timeout of silence)
+        recognition.onend = () => {
+          if (isLiveActive) {
+            // attempt auto-reconnect if still active
+            try { recognition.start(); } catch(e) {}
+          }
+        };
+        
+        try {
+          recognition.start();
+        } catch(e) { console.error("Speech Recognition failed", e); }
+      }
+    }
+    
+    return () => {
+      if (recognition) {
+        recognition.onend = null; // prevent auto-reconnect
+        try { recognition.stop(); } catch(e) {}
+      }
+    };
+  }, [appMode, isLiveActive]);
+
+  // Live Conversation polling effect
   useEffect(() => {
     if (appMode === 'LIVE_CONVERSATION' && isLiveActive) {
-      // Setup interval
-      liveIntervalRef.current = setInterval(() => {
+      // Setup debounce timeout
+      const timeoutId = setTimeout(() => {
         // Only run summarize if transcript actually changed
         if (transcriptInput.trim() !== '' && transcriptInput !== prevTranscriptRef.current) {
           prevTranscriptRef.current = transcriptInput;
           processTranscript(true); // pass true for silent/background loading
         }
-      }, 15000); // 15 seconds interval
-    } else {
-      if (liveIntervalRef.current) {
-        clearInterval(liveIntervalRef.current);
-      }
+      }, 5000); // 5 seconds debounce
+      return () => clearTimeout(timeoutId);
     }
-    return () => {
-      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current);
-    };
   }, [appMode, isLiveActive, transcriptInput]);
 
   const selectPreset = (preset: typeof SUGGESTED_PRESETS[0]) => {
@@ -302,7 +345,8 @@ export default function App() {
         body: JSON.stringify({
           transcript: transcriptInput,
           currentDate: systemDate,
-          meetingContext: appMode === 'LIVE_CONVERSATION' ? "Live updating meeting summary. Add to nodes conceptually as we go." : meetingContext
+          meetingContext: appMode === 'LIVE_CONVERSATION' ? "Live updating meeting summary. Add to nodes conceptually as we go." : meetingContext,
+          previousSummary: appMode === 'LIVE_CONVERSATION' ? summaryDataRef.current?.markdown : undefined
         })
       });
       const data = await resp.json();
@@ -543,6 +587,7 @@ export default function App() {
                   <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-a:text-indigo-600 prose-h3:text-gray-900 prose-h3:font-medium prose-li:text-gray-700 border-t border-gray-100 pt-5 mt-2">
                     <Markdown
                       remarkPlugins={[remarkGfm]}
+                      urlTransform={(value) => value}
                       components={{
                         img(props) {
                           const { node, ...rest } = props;

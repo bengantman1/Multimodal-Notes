@@ -31,15 +31,43 @@ const ai = new GoogleGenAI({
 
 // A system prompt that forces the structured summary output for our meeting notes
 const SUMMARIZE_SYSTEM_INSTRUCTION = `
-You are an expert executive assistant and technical note-taker. 
+You are an expert executive assistant, technical note-taker, and AI Meeting Visualizer integrated into a note-taking system.
 Your task is to analyze the provided raw meeting transcript or voice memo text, and generate a customized structured summary.
+
 Your output MUST be a JSON object with the following schema:
 {
   "title": "A concise title summarizing the meeting context",
-  "markdown": "A comprehensive summary formatted in Markdown. Include headings, bullet points, action items. If it is effective to graphically represent ideas, include 'mermaid' code blocks (e.g., \\\`\\\`\\\`mermaid\\ngraph TD ...\\\`\\\`\\\`) to render flowcharts or graphs. In addition, you may include valid Markdown images if an image beautifully illustrates the topic discussed."
+  "markdown": "A comprehensive summary formatted in Markdown. Include headings, bullet points, action items. Include diagram code blocks or image tags when appropriate based on the guidelines."
 }
-Guidelines:
+
+Guidelines for text:
 - Return ONLY valid JSON matching the schema.
+
+Your job is to determine whether a visual artifact would meaningfully improve understanding of the meeting content. Most information should remain as text. Only generate a visual when it provides substantially more clarity, organization, or insight than written notes alone.
+
+## Primary Rule
+Do not generate images or diagrams for decoration, aesthetics, or because a visual is technically possible. Generate a visual only when it would help a reader understand relationships, processes, structures, timelines, comparisons, or quantitative information significantly faster than reading text.
+
+## When to Generate a Visual (Diagrams & Images)
+Generate a visual if one or more of the following are present:
+- Process or Workflow (e.g., onboarding, pipelines). Preferred: Mermaid Flowchart.
+- System Architecture (e.g., APIs, hardware). Preferred: Mermaid Architecture/Component diagram.
+- Relationships Between Entities. Preferred: Mermaid Network graph.
+- Timeline or Chronology. Preferred: Mermaid Timeline.
+- Decision Trees. Preferred: Mermaid Decision tree.
+
+## When NOT to Generate a Visual
+Do NOT generate visuals for: General discussion, unstructured brainstorming, casual conversation, status updates, simple lists, meeting summaries, action items, or trivial information. If uncertain, do not generate a visual.
+
+## Visual Quality Requirements
+1. Capture only information explicitly discussed. Do not invent entities.
+2. Keep diagrams concise and readable. Eliminate redundant info.
+3. Prefer one high-quality visual over multiple low-value visuals.
+
+## Images
+When the transcript contains real-world entities that would benefit from visual representation (e.g., Products, Buildings, Hardware devices, UI mockups, Physical objects), generate contextual images.
+To request an image generation, output exactly one special image tag in this format: [IMAGE_PROMPT: <detailed visual description of the subject>].
+Do not generate embedded images for abstract concepts.
 `;
 
 // Helper for generating dynamic mock data if Gemini API has problems or keys are missing
@@ -67,7 +95,7 @@ const getMockWorkspaceData = (userInput: string, currentDateStr?: string): any =
 
 // Pasted Transcript Summarizer Endpoint
 app.post("/api/summarize-transcript", async (req, res) => {
-  const { transcript, meetingContext, currentDate } = req.body;
+  const { transcript, meetingContext, currentDate, previousSummary } = req.body;
 
   if (!transcript || !transcript.trim()) {
     return res.status(400).json({ error: "Transcript content is empty" });
@@ -77,11 +105,18 @@ app.post("/api/summarize-transcript", async (req, res) => {
     const prompt = `
       Analyze the following transcript. Context of discussion: ${meetingContext || "Regular discussion"}.
       Current System Date reference: ${currentDate || "today"}.
-      CRITICAL INSTRUCTION FOR IMAGES: If the transcript describes a physical product, a highly visual concept, or implies an image would be useful, autonomously decide to include a generated image in the summary. Output exactly one special image tag in this format: [IMAGE_PROMPT: <detailed visual description of the subject>]. You can output both mermaid diagrams and a single image prompt if relevant.
       
       Transcript text:
       "${transcript}"
       
+      ${previousSummary ? `
+      PREVIOUS SUMMARY STATE:
+      \`\`\`markdown
+      ${previousSummary}
+      \`\`\`
+      IMPORTANT LIVE SYNC RULE: You are updating a live conversation summary. Do NOT rewrite the entire document from scratch. ONLY change or append details in the document that are relevant to the new transcript modifications. Preserve the structure and unmodified details as much as possible. Output the full updated markdown.
+      ` : ""}
+
       Produce the requested structured JSON. Ensure valid braces structure. Only include lists or segments that are directly supported by text evidence.
     `;
 
@@ -125,15 +160,17 @@ app.post("/api/summarize-transcript", async (req, res) => {
         
         // Find the image part
         let base64Image = null;
+        let mimeType = "image/jpeg";
         for (const part of imgResponse.candidates?.[0]?.content?.parts || []) {
           if (part.inlineData) {
             base64Image = part.inlineData.data;
+            if (part.inlineData.mimeType) mimeType = part.inlineData.mimeType;
             break;
           }
         }
         
         if (base64Image) {
-          const markdownImage = `![Generated Image](data:image/jpeg;base64,${base64Image})`;
+          const markdownImage = `![Generated Image](data:${mimeType};base64,${base64Image})`;
           data.markdown = data.markdown.replace(imgPromptMatch[0], markdownImage);
         } else {
           data.markdown = data.markdown.replace(imgPromptMatch[0], "> *Image generation failed.*");
@@ -190,7 +227,6 @@ app.post("/api/summarize-voice", async (req, res) => {
       "${textResult}"
 
       Current System Date reference: ${currentDate || "today"}.
-      CRITICAL INSTRUCTION FOR IMAGES: If the transcript describes a physical product, a highly visual concept, or implies an image would be useful, autonomously decide to include a generated image in the summary. Output exactly one special image tag in this format: [IMAGE_PROMPT: <detailed visual description of the subject>]. You can output both mermaid diagrams and a single image prompt if relevant.
       Please generate the professional structured meeting summary JSON matching our exact schemas. Organize the segments dynamically based strictly on the content discussed.
     `;
 
@@ -231,15 +267,17 @@ app.post("/api/summarize-voice", async (req, res) => {
         });
         
         let base64Image = null;
+        let mimeType = "image/jpeg";
         for (const part of imgResponse.candidates?.[0]?.content?.parts || []) {
           if (part.inlineData) {
             base64Image = part.inlineData.data;
+            if (part.inlineData.mimeType) mimeType = part.inlineData.mimeType;
             break;
           }
         }
         
         if (base64Image) {
-          const markdownImage = `![Generated Image](data:image/jpeg;base64,${base64Image})`;
+          const markdownImage = `![Generated Image](data:${mimeType};base64,${base64Image})`;
           parsedData.markdown = parsedData.markdown.replace(imgPromptMatch[0], markdownImage);
         } else {
           parsedData.markdown = parsedData.markdown.replace(imgPromptMatch[0], "> *Image generation failed.*");

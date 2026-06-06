@@ -16,14 +16,51 @@ import { SummaryResult } from './types';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import mermaid from 'mermaid';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 
-mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'default',
+  themeVariables: {
+    background: '#ffffff',
+    primaryColor: '#f9fafb',
+    primaryTextColor: '#111827',
+    primaryBorderColor: '#e5e7eb',
+    lineColor: '#6b7280',
+    secondaryColor: '#ffffff',
+    tertiaryColor: '#ffffff',
+    nodeBorder: '#e5e7eb',
+    mainBkg: '#ffffff',
+    textColor: '#111827',
+    nodeTextColor: '#111827',
+    edgeLabelBackground: '#ffffff'
+  }
+});
 
 const MermaidDiagram = ({ code }: { code: string }) => {
   const ref = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     if (ref.current) {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        themeVariables: {
+          background: '#ffffff',
+          primaryColor: '#f9fafb',
+          primaryTextColor: '#111827',
+          primaryBorderColor: '#e5e7eb',
+          lineColor: '#6b7280',
+          secondaryColor: '#ffffff',
+          tertiaryColor: '#ffffff',
+          nodeBorder: '#e5e7eb',
+          mainBkg: '#ffffff',
+          textColor: '#111827',
+          nodeTextColor: '#111827',
+          edgeLabelBackground: '#ffffff'
+        }
+      });
       mermaid.render(`mermaid-${Math.random().toString(36).substring(7)}`, code).then((result) => {
         if (ref.current) {
           ref.current.innerHTML = result.svg;
@@ -32,7 +69,14 @@ const MermaidDiagram = ({ code }: { code: string }) => {
     }
   }, [code]);
   
-  return <div ref={ref} className="mermaid-diagram my-6 flex justify-center text-xs" />;
+  return (
+    <div className="my-6 flex justify-center w-full">
+      <div 
+        ref={ref} 
+        className="mermaid-diagram bg-white border border-gray-200 rounded-xl p-6 shadow-xs max-w-full overflow-x-auto flex justify-center" 
+      />
+    </div>
+  );
 };
 
 // Declare global interface for window.meet to keep TS happy and compilable
@@ -63,6 +107,29 @@ export default function App() {
   const [transcriptInput, setTranscriptInput] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [summaryData, setSummaryData] = useState<SummaryResult | null>(null);
+
+  const handleExportPDF = async () => {
+    const element = document.getElementById('document-content');
+    if (!element) return;
+    
+    const btn = document.getElementById('export-pdf-btn');
+    if (btn) btn.style.display = 'none';
+
+    try {
+      const dataUrl = await toPng(element, { backgroundColor: '#ffffff', pixelRatio: 2 });
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (element.offsetHeight * pdfWidth) / element.offsetWidth;
+      
+      pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(summaryData?.title ? `${summaryData.title.split(' ').join('_')}.pdf` : 'Export.pdf');
+    } catch (err) {
+      console.error('PDF Export Error:', err);
+    } finally {
+      if (btn) btn.style.display = 'flex';
+    }
+  };
 
   // Voice recording state & simulation fallback
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -220,13 +287,13 @@ export default function App() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#050505] text-[#e0e0e0] font-sans flex flex-col justify-start overflow-x-hidden antialiased" id="app-viewport">
+    <div className="w-full min-h-screen bg-gray-50 text-gray-800 font-sans flex flex-col justify-start overflow-x-hidden antialiased" id="app-viewport">
       
       {/* SOLID SOPHISTICATED TOP HEADER */}
-      <header className="h-16 border-b border-white/10 flex flex-col md:flex-row items-center justify-between px-6 sm:px-12 py-3 md:py-0 bg-[#0c0c0c] shrink-0 gap-3 md:gap-0 sticky top-0 z-20">
+      <header className="h-16 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between px-6 sm:px-12 py-3 md:py-0 bg-white shrink-0 gap-3 md:gap-0 sticky top-0 z-20">
         <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-[#c5a059]" />
-          <h1 className="font-medium tracking-wide text-sm text-white">Meeting Notes</h1>
+          <FileText className="w-5 h-5 text-indigo-600" />
+          <h1 className="font-medium tracking-wide text-sm text-gray-900">Meeting Notes</h1>
         </div>
 
         <div className="flex items-center gap-4">
@@ -237,7 +304,7 @@ export default function App() {
               setErrorMessage("");
               setLastRecordedDuration(null);
             }}
-            className="px-4 py-1.5 border border-white/10 hover:border-white/20 rounded-md text-xs text-white/50 hover:text-white transition-all cursor-pointer"
+            className="px-4 py-1.5 border border-gray-200 hover:border-gray-300 rounded-md text-xs text-gray-500 hover:text-gray-900 transition-all cursor-pointer"
           >
             Clear
           </button>
@@ -249,28 +316,28 @@ export default function App() {
         
         {/* Error Notification Alert */}
         {errorMessage && (
-          <div className="p-4 bg-red-950/40 border border-red-900/50 text-red-200 rounded-lg flex items-center gap-3 text-xs" id="err-alert">
-            <AlertCircle className="w-4.5 h-4.5 text-red-400 shrink-0" />
+          <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex items-center gap-3 text-xs" id="err-alert">
+            <AlertCircle className="w-4.5 h-4.5 text-red-500 shrink-0" />
             <p className="font-sans leading-relaxed">{errorMessage}</p>
           </div>
         )}
 
         {/* TOP STATION: Transcription Entry point Panel */}
-        <section className="bg-[#0c0c0c] rounded-xl border border-white/10 p-6 flex flex-col gap-5 print:hidden">
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-white/5 pb-3">
+        <section className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col gap-5 print:hidden">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-gray-100 pb-3">
                 <div>
-                  <h2 className="text-xl font-serif text-white">Input Transcript or Record Audio</h2>
+                  <h2 className="text-xl font-serif text-gray-900">Input Transcript or Record Audio</h2>
                 </div>
 
                 {/* Quick Suggested Chips list */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[9px] text-white/30 mr-1 uppercase">Examples:</span>
+                  <span className="font-mono text-[9px] text-gray-400 mr-1 uppercase">Examples:</span>
                   {SUGGESTED_PRESETS.map((p, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => selectPreset(p)}
-                      className="px-2.5 py-1 text-[10px] bg-white/5 hover:bg-white/10 hover:text-[#c5a059] text-white/70 rounded-full border border-white/15 transition-all text-left cursor-pointer font-sans"
+                      className="px-2.5 py-1 text-[10px] bg-gray-50 hover:bg-gray-100 hover:text-indigo-600 text-gray-600 rounded-full border border-gray-200 transition-all text-left cursor-pointer font-sans"
                     >
                       {p.badge}
                     </button>
@@ -281,28 +348,28 @@ export default function App() {
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 
                 {/* Recording module Box */}
-                <div className="lg:col-span-4 bg-black/40 border border-white/5 p-4 rounded-xl flex flex-col justify-between gap-4">
+                <div className="lg:col-span-4 bg-gray-50 border border-gray-100 p-4 rounded-xl flex flex-col justify-between gap-4">
                   <div>
-                    <h4 className="text-sm font-medium text-white">Record Audio</h4>
-                    <p className="text-xs text-white/50 mt-1">
+                    <h4 className="text-sm font-medium text-gray-900">Record Audio</h4>
+                    <p className="text-xs text-gray-500 mt-1">
                       Record from your microphone.
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 bg-[#050505] p-3 rounded-lg border border-white/5">
+                  <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-200 shadow-xs">
                     <button
                       onClick={isRecording ? stopRecording : startRecording}
-                      className={`w-10 h-10 rounded-full cursor-pointer flex items-center justify-center transition-all shrink-0 ${isRecording ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-[#c5a059] text-black hover:bg-[#8d713c]'}`}
+                      className={`w-10 h-10 rounded-full cursor-pointer flex items-center justify-center transition-all shrink-0 ${isRecording ? 'bg-red-600 hover:bg-red-700 animate-pulse text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
                       id="btn-voice-recorder"
                       title={isRecording ? "Stop recording" : "Start speaking"}
                     >
-                      {isRecording ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4" />}
+                      {isRecording ? <MicOff className="w-4 h-4 text-white" /> : <Mic className="w-4 h-4 text-white" />}
                     </button>
                     <div className="min-w-0">
-                      <span className="block text-[11px] font-semibold text-white truncate">
+                      <span className="block text-[11px] font-semibold text-gray-900 truncate">
                         {isRecording ? `Recording` : 'Ready'}
                       </span>
-                      <span className="block font-mono text-[9px] text-white/40">
+                      <span className="block font-mono text-[9px] text-gray-400">
                         {isRecording ? `${recordingSeconds}s` : 'Click to start'}
                       </span>
                     </div>
@@ -311,7 +378,7 @@ export default function App() {
 
                 {/* Pasted text Area column */}
                 <div className="lg:col-span-8 flex flex-col gap-3">
-                  <div className="flex items-center justify-between text-[10px] font-mono tracking-wider text-white/40 uppercase">
+                  <div className="flex items-center justify-between text-[10px] font-mono tracking-wider text-gray-400 uppercase">
                     <span>Transcript</span>
                   </div>
 
@@ -319,7 +386,7 @@ export default function App() {
                     value={transcriptInput}
                     onChange={(e) => setTranscriptInput(e.target.value)}
                     placeholder="Enter transcript..."
-                    className="w-full h-36 bg-black/60 border border-white/5 hover:border-white/10 focus:border-[#c5a059] rounded-xl p-4 font-mono text-xs text-white/80 leading-relaxed outline-hidden focus:ring-1 focus:ring-[#c5a059]/30 resize-none"
+                    className="w-full h-36 bg-gray-50 border border-gray-100 hover:border-gray-200 focus:border-indigo-500 rounded-xl p-4 font-mono text-xs text-gray-700 leading-relaxed outline-hidden focus:ring-1 focus:ring-indigo-500/30 resize-none"
                     id="transcript-raw-textarea"
                     title="Enter your meeting raw chat log here"
                   />
@@ -328,7 +395,7 @@ export default function App() {
                     <button
                       onClick={processTranscript}
                       disabled={isLoading || !transcriptInput.trim()}
-                      className="px-6 py-2.5 bg-[#c5a059] hover:bg-[#8d713c] text-black font-semibold text-xs rounded-sm cursor-pointer disabled:bg-white/5 disabled:text-white/30 transition-all flex items-center gap-2 shadow-md"
+                      className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-sm cursor-pointer disabled:bg-gray-50 disabled:text-gray-400 transition-all flex items-center gap-2 shadow-md"
                       id="btn-process-summarize"
                     >
                       {isLoading ? (
@@ -353,25 +420,25 @@ export default function App() {
               <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fadeIn" id="synthesis-hub">
                 
                 {/* Left Box: Text synthesis & actions */}
-                <div className="lg:col-span-12 bg-[#0c0c0c] border border-white/10 rounded-xl p-6 lg:p-8 space-y-6">
+                <div className="lg:col-span-12 bg-white border border-gray-200 rounded-xl p-6 lg:p-8 space-y-6" id="document-content">
                   
                   {/* Card Header title */}
-                  <div className="border-b border-white/5 pb-4">
+                  <div className="border-b border-gray-100 pb-4">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div>
-                        <h3 className="text-xl lg:text-2xl font-medium text-white leading-tight mt-1">
+                        <h3 className="text-xl lg:text-2xl font-medium text-gray-900 leading-tight mt-1">
                           {summaryData.title}
                         </h3>
                         <div className="flex items-center gap-2 mt-2">
-                          <span className="text-[10px] text-white/50">
+                          <span className="text-[10px] text-gray-500">
                             {summaryData.date || new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 no-print shrink-0">
+                      <div className="flex items-center gap-2 no-print shrink-0" id="export-pdf-btn">
                         <button
-                          onClick={() => window.print()}
-                          className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] text-white/70 hover:text-white uppercase tracking-wider font-mono transition-colors flex items-center gap-1.5 cursor-pointer"
+                          onClick={handleExportPDF}
+                          className="px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded text-[10px] text-gray-600 hover:text-gray-900 uppercase tracking-wider font-mono transition-colors flex items-center gap-1.5 cursor-pointer"
                           title="Export document as PDF"
                         >
                           <Download className="w-3.5 h-3.5" />
@@ -382,7 +449,7 @@ export default function App() {
                   </div>
 
                   {/* Markdown Output */}
-                  <div className="prose prose-invert prose-sm max-w-none prose-p:leading-relaxed prose-a:text-[#c5a059] prose-h3:text-white prose-h3:font-medium prose-li:text-white/80 border-t border-white/5 pt-5 mt-2">
+                  <div className="prose prose-sm max-w-none prose-p:leading-relaxed prose-a:text-indigo-600 prose-h3:text-gray-900 prose-h3:font-medium prose-li:text-gray-700 border-t border-gray-100 pt-5 mt-2">
                     <Markdown
                       remarkPlugins={[remarkGfm]}
                       components={{
@@ -410,20 +477,20 @@ export default function App() {
               </section>
             ) : (
               /* Empty placeholder box */
-              <div className="text-center py-20 px-6 bg-[#0c0c0c] rounded-2xl border border-dashed border-white/10 max-w-2xl mx-auto" id="dashboard-setup-empty">
-                <div className="w-14 h-14 bg-[#c5a059]/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-[#c5a059]/20">
-                  <FileText className="w-6 h-6 text-[#c5a059]" />
+              <div className="text-center py-20 px-6 bg-white rounded-2xl border border-dashed border-gray-200 max-w-2xl mx-auto" id="dashboard-setup-empty">
+                <div className="w-14 h-14 bg-indigo-600/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-[#c5a059]/20">
+                  <FileText className="w-6 h-6 text-indigo-600" />
                 </div>
                 
-                <h3 className="font-serif text-2xl text-white mb-2">Ready</h3>
-                <p className="font-sans text-xs text-white/50 max-w-md mx-auto leading-relaxed mb-6">
+                <h3 className="font-serif text-2xl text-gray-900 mb-2">Ready</h3>
+                <p className="font-sans text-xs text-gray-500 max-w-md mx-auto leading-relaxed mb-6">
                   Provide a transcript or record audio to generate structured meeting notes and action items.
                 </p>
 
                 <div className="flex flex-wrap items-center justify-center gap-4">
                   <button
                     onClick={() => selectPreset(SUGGESTED_PRESETS[0])}
-                    className="px-4 py-2 border border-white/10 hover:border-white/20 hover:text-white rounded-lg text-white/70 text-xs transition-all cursor-pointer font-mono"
+                    className="px-4 py-2 border border-gray-200 hover:border-gray-300 hover:text-gray-900 rounded-lg text-gray-600 text-xs transition-all cursor-pointer font-mono"
                   >
                     Load Example
                   </button>

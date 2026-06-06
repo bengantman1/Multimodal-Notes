@@ -8,38 +8,58 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+body {
+  background-color: #f9fafb;
+  color: #111827;
+}
+
 /* Custom background styles for beautiful whiteboard grid */
 .whiteboard-dots {
   background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
   background-size: 16px 16px;
 }
-.dark .whiteboard-dots {
-  background-image: radial-gradient(#374151 1px, transparent 1px);
+
+/* Force Light Mode styling on Mermaid diagrams */
+.mermaid-diagram {
+  background-color: #ffffff !important;
 }
 
-@media print {
-  body {
-    background-color: white !important;
-    color: black !important;
-  }
-  .prose-invert {
-    --tw-prose-body: black;
-    --tw-prose-headings: black;
-    --tw-prose-links: #c5a059;
-    --tw-prose-bold: black;
-    --tw-prose-code: black;
-    --tw-prose-bullets: black;
-    --tw-prose-quotes: black;
-    --tw-prose-hr: #e5e7eb;
-    color: black !important;
-  }
-  h3 { color: black !important; }
-  span, div, p { color: black !important; border-color: #e5e7eb !important; }
-  .bg-\[\#0c0c0c\] { background-color: transparent !important; }
-  
-  /* hide everything that is not the printable document */
-  header, #btn-voice-recorder, #transcript-raw-textarea, #btn-process-summarize, #dashboard-setup-empty {
-    display: none !important;
-  }
+.mermaid-diagram svg {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  color: #111827 !important;
 }
 
+.mermaid-diagram svg rect.svg-background {
+  fill: #ffffff !important;
+}
+
+.mermaid-diagram svg rect {
+  fill: #ffffff !important;
+  stroke: #e5e7eb !important;
+}
+
+.mermaid-diagram svg .node rect,
+.mermaid-diagram svg .node circle,
+.mermaid-diagram svg .node ellipse,
+.mermaid-diagram svg .node polygon,
+.mermaid-diagram svg .node path {
+  fill: #ffffff !important;
+  stroke: #d1d5db !important;
+}
+
+.mermaid-diagram svg .node .label {
+  color: #111827 !important;
+}
+
+.mermaid-diagram svg .edgePath .path {
+  stroke: #6b7280 !important;
+}
+
+.mermaid-diagram svg .edgeLabel rect {
+  fill: #ffffff !important;
+}
+
+.mermaid-diagram svg text {
+  fill: #111827 !important;
+}
